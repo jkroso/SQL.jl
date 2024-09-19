@@ -70,7 +70,11 @@ write_option(io, o::Order) = begin
 end
 
 write_query(io::IO, sql::SQLQuery) = begin
-  mapjoin(write_reference, io, sql.select, ("SELECT ", ',', " FROM "))
+  if isempty(sql.select)
+    write(io, "SELECT * FROM ")
+  else
+    mapjoin(write_reference, io, sql.select, ("SELECT ", ',', " FROM "))
+  end
   write(io, sql.table, ' ')
   isempty(sql.joins) || mapjoin(write_join, io, sql.joins, ("JOIN ", " JOIN ", " "))
   isempty(sql.wheres) || mapjoin(write_where, io, sql.wheres, ("WHERE ", " AND ", ""))
