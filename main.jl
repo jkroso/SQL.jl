@@ -38,7 +38,7 @@ end
 end
 SQLReference(ref::AbstractString) = occursin('.', ref) ? SQLReference(split(ref, '.')...) : SQLReference("", ref)
 
-write_reference(io, ref) = write(io, ref.table, '.', ref.column)
+write_reference(io, ref) = isempty(ref.table) ? write(io, ref.column) : write(io, ref.table, '.', ref.column)
 write_join(io, join::Join) = write(io, join.table)
 write_value(io, x) = begin
   push!(variables[], x)
@@ -64,9 +64,8 @@ write_option(io, o::Desc) = write(io, "DESC")
 write_option(io, o::Limit) = print(io, "LIMIT(", o.n, ')')
 write_option(io, o::Offset) = print(io, "OFFSET(", o.n, ')')
 write_option(io, o::Order) = begin
-  write(io, "ORDER BY(")
+  write(io, "ORDER BY ")
   write_reference(io, o.ref)
-  write(io, ')')
 end
 
 write_query(io::IO, sql::SQLQuery) = begin
