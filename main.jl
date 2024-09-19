@@ -6,6 +6,7 @@
 @dynamic! variables = []
 
 abstract type SQLNode end
+abstract type SQLOption <: SQLNode end
 
 mapjoin(fn, io, itr, (pre, sep, post)=('(', ',', ')')) = begin
   first = true
@@ -21,11 +22,19 @@ end
 @struct SQLReference(table::String, column::String) <: SQLNode
 @struct Join(table::String) <: SQLNode
 @struct Select(refs::Vector{SQLReference}) <: SQLNode
+
+@struct Limit(n::Integer) <: SQLOption
+@struct Offset(n::Integer) <: SQLOption
+@struct Desc() <: SQLOption
+@struct Asc() <: SQLOption
+@struct Order(ref::SQLReference) <: SQLOption
+
 @struct struct SQLQuery <: SQLNode
   table::String=""
   select::Vector{SQLReference}=[]
   joins::Vector{Join}=[]
   wheres::Vector{SQLFunction}=[]
+  options::Vector{SQLOption}=[]
 end
 SQLReference(ref::AbstractString) = occursin('.', ref) ? SQLReference(split(ref, '.')...) : SQLReference("", ref)
 
@@ -50,11 +59,22 @@ write_where(io, f::SQLFunction{:between}) = begin
   write_value(io, f.args[3])
 end
 
+write_option(io, o::Asc) = write(io, "ASC")
+write_option(io, o::Desc) = write(io, "DESC")
+write_option(io, o::Limit) = print(io, "LIMIT(", o.n, ')')
+write_option(io, o::Offset) = print(io, "OFFSET(", o.n, ')')
+write_option(io, o::Order) = begin
+  write(io, "ORDER BY(")
+  write_reference(io, o.ref)
+  write(io, ')')
+end
+
 write_query(io::IO, sql::SQLQuery) = begin
   mapjoin(write_reference, io, sql.select, ("SELECT ", ',', " FROM "))
   write(io, sql.table, ' ')
   isempty(sql.joins) || mapjoin(write_join, io, sql.joins, ("JOIN ", " JOIN ", " "))
-  isempty(sql.joins) || mapjoin(write_where, io, sql.wheres, ("WHERE ", " AND ", ""))
+  isempty(sql.wheres) || mapjoin(write_where, io, sql.wheres, ("WHERE ", " AND ", ""))
+  isempty(sql.options) || mapjoin(write_option, io, sql.options, (" ", " ", ""))
 end
 
 Base.write(io::IO, sql::SQLQuery) = write_query(io, sql)
@@ -64,22 +84,27 @@ combine(a::SQLQuery, b::Join) = assoc(a, :joins, append(a.joins, b))
 combine(a::SQLQuery, b::SQLFunction) = assoc(a, :wheres, append(a.wheres, b))
 combine(a::SQLQuery, b::SQLReference) = assoc(a, :select, append(a.select, b))
 combine(a::SQLQuery, b::Select) = assoc(a, :select, append(a.select, b.refs...))
-combine(a::Join, b::SQLNode) = combine(convert(SQLQuery, a), b)
+combine(a::SQLQuery, b::SQLOption) = assoc(a, :options, append(a.options, b))
 combine(a::SQLQuery, b::SQLQuery) = begin
   assoc(a, :table, isempty(a.table) ? b.table : a.table,
            :select, vcat(a.select, b.select),
            :joins, vcat(a.joins, b.joins),
-           :wheres, vcat(a.wheres, b.wheres))
+           :wheres, vcat(a.wheres, b.wheres),
+           :options, vcat(a.options, b.options))
 end
+combine(a::SQLNode, b::SQLNode) = combine(convert(SQLQuery, a), convert(SQLQuery, b))
 
 Base.convert(::Type{SQLQuery}, b::Join) = SQLQuery(joins=[b])
+Base.convert(::Type{SQLQuery}, b::SQLOption) = SQLQuery(options=[b])
+Base.convert(::Type{SQLQuery}, b::SQLFunction) = SQLQuery(wheres=[b])
+Base.convert(::Type{SQLQuery}, b::Select) = SQLQuery(select=[b])
 
 macro sql(exprs...)
   @capture quote $(exprs...) end begin lines__ end
   foldl((a,b)->:($a|>$b), map(sql_expr, lines))
 end
 
-const keywords = (:Where, :From, :Select, :Join, :As, :Order, :Limit, :Desc, :Asc, :Sort)
+const keywords = (:Where, :From, :Select, :Join, :Order, :Limit, :Desc, :Asc, :Sort)
 const functions = (:<, :>, :<=, :>=, :(==))
 const function_map = Base.ImmutableDict(:(==) => :(=))
 

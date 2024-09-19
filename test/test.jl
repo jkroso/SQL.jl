@@ -1,6 +1,6 @@
 @use "github.com/jkroso/Rutherford.jl/test" @test
 @use ".." SQLQuery SQLReference Join SQLFunction Select @sql
-@use "../db" DB query
+@use "../db" DB query prepare
 @use Dates: Date
 @use SQLite: DBInterface
 
@@ -43,3 +43,6 @@ end
 d = c |> @sql `Invoice.customerID` == 2
 
 @test sum([r.Quantity for r in query(db, d)]) == 25
+
+e = c |> @sql Order(`InvoiceLine.Quantity`) Asc() Limit(1)
+@test sum([r.Quantity for r in query(db, e)]) == 1
