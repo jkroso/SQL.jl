@@ -75,9 +75,9 @@ write_query(io::IO, sql::SQLQuery) = begin
   else
     mapjoin(write_reference, io, sql.select, ("SELECT ", ',', " FROM "))
   end
-  write(io, sql.table, ' ')
-  isempty(sql.joins) || mapjoin(write_join, io, sql.joins, ("JOIN ", " JOIN ", " "))
-  isempty(sql.wheres) || mapjoin(write_where, io, sql.wheres, ("WHERE ", " AND ", ""))
+  write(io, sql.table)
+  isempty(sql.joins) || mapjoin(write_join, io, sql.joins, (" JOIN ", " JOIN ", ""))
+  isempty(sql.wheres) || mapjoin(write_where, io, sql.wheres, (" WHERE ", " AND ", ""))
   isempty(sql.options) || mapjoin(write_option, io, sql.options, (" ", " ", ""))
 end
 
@@ -86,8 +86,9 @@ Base.:|>(a::SQLNode, b::SQLNode) = combine(a, b)
 
 combine(a::SQLQuery, b::Join) = assoc(a, :joins, append(a.joins, b))
 combine(a::SQLQuery, b::SQLFunction) = assoc(a, :wheres, append(a.wheres, b))
-combine(a::SQLQuery, b::SQLReference) = assoc(a, :select, append(a.select, b))
-combine(a::SQLQuery, b::Select) = assoc(a, :select, append(a.select, b.refs...))
+combine(a::SQLQuery, b::SQLReference) = assoc(a, :select, append(a.select, namespace(a, b)))
+namespace(a, b::SQLReference) = isempty(b.table) ? assoc(b, :table, a.table) : b
+combine(a::SQLQuery, b::Select) = assoc(a, :select, append(a.select, (namespace(a, br) for br in b.refs)...))
 combine(a::SQLQuery, b::SQLOption) = assoc(a, :options, append(a.options, b))
 combine(a::SQLQuery, b::SQLQuery) = begin
   assoc(a, :table, isempty(a.table) ? b.table : a.table,

@@ -8,6 +8,8 @@ const db = DB("$(@dirname)/chinook.db")
 
 @test first(query(db, @sql From(`Invoice`))).InvoiceId == 1
 
+@test sprint(write, @sql From(`Invoice`) Select(`rowid`)) == "SELECT Invoice.rowid FROM Invoice"
+
 a = SQLQuery("InvoiceLine",
              [SQLReference("InvoiceLine.UnitPrice"), SQLReference("InvoiceLine.Quantity")],
              [Join("Invoice")],
