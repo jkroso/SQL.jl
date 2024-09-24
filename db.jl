@@ -1,5 +1,5 @@
 @use Dates: Date, DateTime, @dateformat_str, format
-@use "." SQLFunction SQLReference SQLNode SQLQuery variables
+@use "." SQLFunction SQLReference SQLNode SQLQuery variables @sql
 @use "github.com/jkroso/DynamicVar.jl" @dynamic!
 @use SQLite: DBInterface, DB, columns, tables
 
@@ -27,22 +27,27 @@ table_name(::Type{T}) where T = String(T.name.name)
 "Convert a struct to a tuple of values that SQLite can store"
 sqlrow(obj) = map(p->sqlvalue(getproperty(obj, p)), propertynames(obj))
 
+addwhere(q::SQLQuery, (k,v)::Pair) = q |> SQLFunction{:(=)}([SQLReference(q.table, string(k)), sqlvalue(v)])
+
 "Update the `db` row associated with `a` have the value of `b` instead"
 update(db::DB, a::T, b::T) where T = begin
-  statements = []=>[]
-  values = []=>[]
-  for (c,val) in zip(fieldnames(T), sqlrow(b))
-    i = (getfield(a, c) == getfield(b, c)) + 1
-    if isnothing(val)
-      i > 1 && push!(statements[i], "'$c' IS Null")
-    else
-      push!(statements[i], "'$c' = ?")
-      push!(values[i], val)
+  table = table_name(T)
+  pk = primary_key(db, table)
+  q = reduce(addwhere, pairs(a), init=@sql From(table))
+  r = query(db, q)
+  @assert !isempty(r)
+  id = getproperty(first(r), Symbol(pk))
+  statements = []
+  values = []
+  for (c,val) in pairs(b)
+    if getfield(a, c) != val
+      push!(statements, "\"$c\" = ?")
+      push!(values, sqlvalue(val))
     end
   end
-  @assert !isempty(statements[2])
-  sql = "UPDATE \"$(table_name(T))\" SET $(join(statements[1], ',')) WHERE $(join(statements[2], " AND "))"
-  !isempty(DBInterface.execute(db, sql, vcat(values[1], values[2])))
+  @assert !isempty(statements)
+  DBInterface.execute(db, "UPDATE \"$table\" SET $(join(statements, ',')) WHERE $pk=$id", values)
+  nothing
 end
 
 "Serialise the `sql` query and create a Vector of the values that should be assigned to its parameters"
@@ -54,9 +59,27 @@ end
 
 "Run a query against the `db`. Any keyword arguments will be added to the query as WHERE clauses"
 query(db::DB, sql::SQLQuery; kv...) = begin
-  sql = reduce(pairs(kv), init=sql) do out, (k,v)
-    out |> SQLFunction{:(=)}([SQLReference(out.table, string(k)), v])
-  end
+  sql = reduce(addwhere, pairs(kv), init=sql)
   str, vars = prepare(sql)
   DBInterface.execute(db, str, vars)
+end
+
+struct TableMetadata
+  columns::Vector{String}
+  primarykey::String
+end
+
+const meta = WeakKeyDict{DB,Dict{String,TableMetadata}}()
+
+generate_metadata(db) = Dict{String, TableMetadata}((t.name=>generate_metadata(db, t.name) for t in tables(db)))
+generate_metadata(db, table) = begin
+  meta = columns(db, table)
+  pki = findfirst(!iszero, meta.pk)
+  pk = isnothing(pki) ? "rowid" : meta.name[pki]
+  TableMetadata(meta.name, pk)
+end
+
+primary_key(db, table) = begin
+  data = get!(()->generate_metadata(db), meta, db)
+  data[table].primarykey
 end

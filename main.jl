@@ -51,6 +51,15 @@ write_where(io, f::SQLFunction{name}) where name = begin
   mapjoin(write_value, io, f.args, ("", " $name ", ""))
 end
 
+write_where(io, f::SQLFunction{:(=)}) = begin
+  if isnothing(f.args[2])
+    write_value(io, f.args[1])
+    write(io, " IS Null")
+  else
+    mapjoin(write_value, io, f.args, ("", " = ", ""))
+  end
+end
+
 write_where(io, f::SQLFunction{:between}) = begin
   write_value(io, f.args[1])
   write(io, " BETWEEN ")

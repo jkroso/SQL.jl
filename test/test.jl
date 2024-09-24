@@ -1,8 +1,8 @@
 @use "github.com/jkroso/Rutherford.jl/test" @test
 @use ".." SQLQuery SQLReference Join SQLFunction Select @sql
-@use "../db" DB query prepare
+@use "../db" DB query prepare table_name update save primary_key
 @use Dates: Date
-@use SQLite: DBInterface
+@use SQLite: DBInterface, columns, tables
 
 const db = DB("$(@dirname)/chinook.db")
 
@@ -50,3 +50,19 @@ d = c |> @sql `Invoice.customerID` == 2
 
 e = c |> @sql Order(`InvoiceLine.Quantity`) Asc() Limit(1)
 @test sum([r.Quantity for r in query(db, e)]) == 1
+
+dbb = DB(cp("$(@dirname)/chinook.db", "$(@dirname)/copy.db", force=true))
+
+struct Genre
+  GenreID::Int
+  Name::String
+end
+
+@test table_name(Genre) == "Genre"
+row = query(dbb, @sql From(`Genre`) `rowid`==12)|>first
+@test row.Name == "Easy Listening"
+a = Genre(row.GenreId, row.Name)
+b = Genre(row.GenreId, "Chill")
+update(dbb, a, b)
+row = query(dbb, @sql From(`Genre`) `rowid`==12)|>first
+@test row.Name == "Chill"
