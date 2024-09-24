@@ -36,7 +36,11 @@ end
   wheres::Vector{SQLFunction}=[]
   options::Vector{SQLOption}=[]
 end
+
 SQLReference(ref::AbstractString) = occursin('.', ref) ? SQLReference(split(ref, '.')...) : SQLReference("", ref)
+SQLReference(ref::Symbol) = SQLReference("", string(ref))
+Base.convert(::Type{SQLReference}, x) = SQLReference(x)
+Base.convert(::Type{SQLReference}, x::SQLReference) = x
 
 write_reference(io, ref) = isempty(ref.table) ? write(io, ref.column) : write(io, ref.table, '.', ref.column)
 write_join(io, join::Join) = write(io, join.table)
