@@ -54,7 +54,7 @@ e = c |> @sql Order(`InvoiceLine.Quantity`) Asc() Limit(1)
 dbb = DB(cp("$(@dirname)/chinook.db", "$(@dirname)/copy.db", force=true))
 
 struct Genre
-  GenreID::Int
+  GenreId::Int
   Name::String
 end
 

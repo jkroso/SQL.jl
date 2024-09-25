@@ -32,11 +32,15 @@ addwhere(q::SQLQuery, (k,v)::Pair) = q |> SQLFunction{:(=)}([SQLReference(q.tabl
 "Update the `db` row associated with `a` have the value of `b` instead"
 update(db::DB, a::T, b::T) where T = begin
   table = table_name(T)
-  pk = primary_key(db, table)
-  q = reduce(addwhere, pairs(a), init=@sql From(table))
-  r = query(db, q)
-  @assert !isempty(r)
-  id = getproperty(first(r), Symbol(pk))
+  pk = Symbol(primary_key(db, table))
+  id = if hasproperty(a, pk)
+    getproperty(a, pk)
+  else
+    q = reduce(addwhere, pairs(a), init=@sql From(table) Select(pk))
+    r = query(db, q)
+    @assert !isempty(r)
+    getproperty(first(r), pk)
+  end
   statements = []
   values = []
   for (c,val) in pairs(b)
