@@ -66,3 +66,6 @@ b = Genre(row.GenreId, "Chill")
 update(dbb, a, b)
 row = query(dbb, @sql From(`Genre`) `rowid`==12)|>first
 @test row.Name == "Chill"
+update(dbb, a)
+row = query(dbb, @sql From(`Genre`) `rowid`==12)|>first
+@test row.Name == "Easy Listening"

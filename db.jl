@@ -54,6 +54,16 @@ update(db::DB, a::T, b::T) where T = begin
   nothing
 end
 
+"Overwrite the `db` row associated with the primary key of `a` with freshly serialized values"
+update(db::DB, a::T) where T = begin
+  table = table_name(T)
+  pk = Symbol(primary_key(db, table))
+  id = getproperty(a, pk)
+  cols = propertynames(a)
+  DBInterface.execute(db, "UPDATE \"$table\" SET $(join(cols, "=?,"))=? WHERE $pk=$id", sqlrow(a))
+  nothing
+end
+
 "Serialise the `sql` query and create a Vector of the values that should be assigned to its parameters"
 prepare(sql::SQLQuery) = begin
   @dynamic! let variables = []
