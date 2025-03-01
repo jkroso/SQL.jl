@@ -4,7 +4,7 @@
 @use SQLite: DBInterface, DB, columns, tables
 
 sqlvalue(m::Date) = format(m, dateformat"yyyy-mm-dd")
-sqlvalue(m::DateTime) = format(m, dateformat"yyyy-mm-ddTHH:MM:SS.sssZ")
+sqlvalue(m::DateTime) = format(m, dateformat"yyyy-mm-dd HH:MM:SS.sss")
 sqlvalue(::Missing) = missing
 sqlvalue(::Nothing) = nothing
 sqlvalue(n::Unsigned) = convert(Int, n)
@@ -75,7 +75,7 @@ end
 query(db::DB, sql::SQLQuery; kv...) = begin
   sql = reduce(addwhere, pairs(kv), init=sql)
   str, vars = prepare(sql)
-  DBInterface.execute(db, str, vars)
+  DBInterface.execute(db, str, map(sqlvalue, vars))
 end
 
 struct TableMetadata
